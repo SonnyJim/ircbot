@@ -16,7 +16,7 @@
 //Nick to listen to for questions
 #define DEFAULT_QUIZBOT_NICK	"juicer"
 
-#define DEFAULT_QUIZ_PROMPT	"{MoxQuizz} The question no."
+#define DEFAULT_QUIZ_PROMPT	"{MoxQuizz} The question"
 
 /*
    Example output from MozzQuiz:
@@ -30,7 +30,7 @@
    Author: serv
 */
 
-static void answer_question (const char *question);
+static void answer_question (char *question);
 
 struct cfg {
 	char cfg_file[1024];
@@ -190,20 +190,49 @@ void event_numeric (irc_session_t *session, unsigned int event, const char *orig
 
 void event_channel (irc_session_t *session, const char *event, const char *origin, const char **params, unsigned int count)
 {
-	char channel_text[1024];
-	printf ("Channel text %s\n", channel_text);
+#define UTF8_SPACE 32
+#define UTF8_TILDE 126
+
+	const char *text_buff;
+	char channel_text[255] = "";
+	int ch;
+	size_t len;
+	int i;
+	int j = 0;
+
+	//Cast params to text_buff
+	text_buff = params[1];
+	
+	//Get the length
+	len = strlen (text_buff);
+
+	for (i = 0; i < len; i++)
+	{
+		ch = text_buff[i];
+		//Only put the chars we want into the string
+		if ((ch >= UTF8_SPACE && ch <= UTF8_TILDE) || ch == 160)
+		{
+			if (ch == 160)
+				ch = UTF8_SPACE;
+			channel_text[j] = ch;
+			j++;
+
+		}
+	}
+
 	//We just saw a message from the quizbot
 	if (strcmp (origin, irc_cfg.quizbot_nick) == 0)
 	{
-
 		if (quizbot_prompt)
-		{		
+		{	
+			if (verbose)
+				fprintf (stdout, "Attempting to answer question %s\n", channel_text);
 			//This message should contain the question text
 			answer_question (channel_text);
 			quizbot_prompt = 0;
 		}
 		//The message was the start of a new question
-		else if (strstr (channel_text, DEFAULT_QUIZ_PROMPT) != NULL)
+		else if (strncmp (channel_text, DEFAULT_QUIZ_PROMPT, strlen(DEFAULT_QUIZ_PROMPT) - 1) == 0)
 		{
 			if (verbose)
 				fprintf (stdout, "Found prompt, ready for question\n");
@@ -212,7 +241,7 @@ void event_channel (irc_session_t *session, const char *event, const char *origi
 	}
 }
 
-void print_usage (void)
+static void print_usage (void)
 {
 	fprintf (stdout, "quizbot\n");
 	fprintf (stdout, "Options:\n");
@@ -220,15 +249,20 @@ void print_usage (void)
 	fprintf (stdout, "-h		This help text\n");
 }
 
-static void answer_question (const char *question)
+static void answer_question (char *question)
 {
 	char question_buff[1024];
 	char answer_buff[1024];
 	FILE *q_file;
 	int found_answer = 0;
+	
 
-	//Strip out the category part
-	strncpy (question_buff, strchr (question, ')') + 3, sizeof(question_buff));
+	//Strip out the category part, if it exists FIXME
+	if (strchr (question, ')') != NULL)
+		strcpy (question_buff, strchr (question, ')') + 2);
+	else
+		strcpy (question_buff, question);
+
 	if (verbose)
 		fprintf (stdout, "Question was: %s\n", question_buff);
 
@@ -244,18 +278,25 @@ static void answer_question (const char *question)
 	{
 		if (strstr (answer_buff, question_buff) != NULL)
 		{
-			fprintf (stdout, "Found match %s\n", answer_buff);
+			if (verbose)
+				fprintf (stdout, "Found match %s\n", answer_buff);
 			//We found a match, grab the next line which will be the answer
 			fgets (answer_buff, sizeof(answer_buff), q_file);
 			found_answer = 1;
-			fclose (q_file);
+			break;
 		}
 	}
-	//Strip off the answer part
-	strcpy (answer_buff, strchr (answer_buff, ':') + 1);
-	if (verbose)
-		fprintf (stdout, "I think the answer is %s\n", answer_buff);
-	irc_cmd_msg (session, irc_cfg.channel, answer_buff);
+	
+	if (found_answer)
+	{
+		//Strip off the answer part
+		strcpy (answer_buff, strchr (answer_buff, ':') + 2);
+		if (verbose)
+			fprintf (stdout, "I think the answer is %s\n", answer_buff);
+
+		irc_cmd_msg (session, irc_cfg.channel, answer_buff);
+	}
+	fclose (q_file);
 }
 
 static int cfg_load (void)
