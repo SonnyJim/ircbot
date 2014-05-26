@@ -7,7 +7,7 @@
 #include <iconv.h>
 
 #define DEFAULT_CFG_FILE  	"/.quizbot.cfg"
-#define DEFAULT_IRC_SERVER  	"irc.freenode.org"
+#define DEFAULT_IRC_SERVER  	"irc.squatjuice.org"
 #define DEFAULT_IRC_PORT	"6667"
 #define DEFAULT_IRC_CHANNEL  	"#qircbot"
 #define DEFAULT_IRC_NICK	"qircbot"
@@ -255,7 +255,7 @@ static void answer_question (char *question)
 	char answer_buff[1024];
 	FILE *q_file;
 	int found_answer = 0;
-	
+	int i;
 
 	//Strip out the category part, if it exists FIXME
 	if (strchr (question, ')') != NULL)
@@ -263,6 +263,23 @@ static void answer_question (char *question)
 	else
 		strcpy (question_buff, question);
 
+    //Strip off the leading blank spaces
+    for (i = 0; i < strlen (question_buff); i++)
+    {
+        if (strncmp (&question_buff[i], " ", 1) != 0)
+        {
+            strcpy (question_buff, &question_buff[i]);
+            break;
+        }
+    }
+    //FIXME
+    //Strip off the trailing . if the question had one
+    if (strcmp (&question_buff[strlen(question_buff + 1)], ".") == 0)
+    {
+        fprintf (stdout, "Question had a . at the end of it\n");
+        strncpy (question_buff, question_buff, strlen(question_buff - 2));
+    }
+        
 	if (verbose)
 		fprintf (stdout, "Question was: %s\n", question_buff);
 
@@ -296,8 +313,21 @@ static void answer_question (char *question)
 
 		irc_cmd_msg (session, irc_cfg.channel, answer_buff);
 	}
+    else if (verbose)
+    {
+        fprintf (stdout, "I Couldn't find an answer :-\(\n");
+    }
+
 	fclose (q_file);
 }
+
+/*
+static int cfg_create (void)
+{
+    FILE *in_file;
+    
+}
+*/
 
 static int cfg_load (void)
 {

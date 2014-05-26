@@ -9,5 +9,10 @@ all: ircbot
 ircbot: ircbot.o
 	@echo [link]
 	@$(CC) -o $@ ircbot.o $(LDFLAGS) $(LDLIBS)
+
+quizbot: quizbot.o
+	@echo [link]
+	@$(CC) -o $@ quizbot.o $(LDFLAGS) $(LDLIBS)
+
 clean:
-	rm ircbot.o
+	rm ircbot.o quizbot.o
